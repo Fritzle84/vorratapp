@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Vorrat">
 <title>VorratApp</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/zxing-js/0.20.0/zxing.min.js"></script>
+
 <style>
   :root {
     --blue: #007AFF;
@@ -239,31 +239,59 @@
 
   <!-- ══════════════ SCANNER ══════════════ -->
   <div class="screen" id="screen-scanner">
-    <div id="scanner-view">
-      <video id="scanner-video" autoplay muted playsinline></video>
-      <div class="scanner-overlay">
-        <div class="scan-frame">
-          <div class="scan-corner tl"></div>
-          <div class="scan-corner tr"></div>
-          <div class="scan-corner bl"></div>
-          <div class="scan-corner br"></div>
-          <div class="scan-line"></div>
+    <div class="page-header">
+      <div class="page-title">Scanner</div>
+    </div>
+    <div class="scroll-area" style="padding-top:16px">
+
+      <!-- Kamera-Scan via iOS file input -->
+      <div class="list-group" style="margin-bottom:12px">
+        <div style="padding:20px;text-align:center">
+          <div style="font-size:56px;margin-bottom:8px">📷</div>
+          <div style="font-size:17px;font-weight:600;margin-bottom:6px">Barcode fotografieren</div>
+          <div style="font-size:14px;color:var(--text3);margin-bottom:16px">Kamera öffnet sich – Barcode ins Bild halten</div>
+          <input type="file" accept="image/*" capture="environment" id="barcode-file-input" style="display:none" onchange="handleBarcodeImage(this)">
+          <button class="btn btn-primary" style="width:100%;padding:14px;font-size:17px;border-radius:14px" onclick="document.getElementById('barcode-file-input').click()">
+            📸 Kamera öffnen
+          </button>
         </div>
-        <div class="scan-hint">Barcode in den Rahmen halten</div>
       </div>
-      <div class="scanner-bottom" id="scanner-bottom">
-        <div id="scanner-result" style="display:none" class="scanner-result-card">
-          <h3 id="scan-product-name">–</h3>
-          <p id="scan-product-detail">–</p>
-          <div class="scanner-actions">
-            <button class="btn btn-secondary" onclick="scanAdjust(-1)">➖ Entnehmen</button>
-            <button class="btn btn-primary" onclick="scanAdjust(1)">➕ Zugang</button>
+
+      <!-- Manuelle Barcode-Eingabe -->
+      <div class="section-label">Barcode manuell eingeben</div>
+      <div class="list-group" style="margin-bottom:12px">
+        <div style="padding:16px">
+          <input class="ios-input" id="manual-barcode-input" type="number" placeholder="Barcode-Nummer eingeben" style="margin-bottom:10px">
+          <button class="btn btn-primary" style="width:100%" onclick="lookupManualBarcode()">🔍 Produkt suchen</button>
+        </div>
+      </div>
+
+      <!-- Scan-Ergebnis -->
+      <div id="scanner-result-section" style="display:none">
+        <div class="section-label">Erkanntes Produkt</div>
+        <div class="list-group">
+          <div style="padding:16px">
+            <div style="font-size:19px;font-weight:700;margin-bottom:4px" id="scan-product-name">–</div>
+            <div style="font-size:14px;color:var(--text3);margin-bottom:16px" id="scan-product-detail">–</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-secondary" onclick="scanAdjust(-1)">➖ Entnehmen</button>
+              <button class="btn btn-primary" onclick="scanAdjust(1)">➕ Zugang</button>
+            </div>
           </div>
         </div>
-        <div id="scanner-manual" style="margin-top:8px">
-          <button class="btn btn-secondary" style="width:100%" onclick="openManualAdd()">✏️ Manuell hinzufügen</button>
-        </div>
       </div>
+
+      <!-- Letzten Scans -->
+      <div class="section-label">Letzte Scans</div>
+      <div class="list-group" id="scan-history-list">
+        <div class="list-row"><div class="list-content"><div class="list-title" style="color:var(--text3)">Noch keine Scans</div></div></div>
+      </div>
+
+      <!-- Artikel hinzufügen -->
+      <div style="padding:0 16px;margin-top:4px">
+        <button class="btn btn-secondary" style="width:100%;padding:14px;font-size:15px;border-radius:14px" onclick="openManualAdd()">✏️ Artikel manuell anlegen</button>
+      </div>
+      <div style="height:20px"></div>
     </div>
   </div>
 
@@ -477,8 +505,6 @@ let checkedItems = loadChecked();
 let nextId = Math.max(...articles.map(a=>a.id), 51) + 1;
 let currentScanArticle = null;
 let einkaufTab = 'auto';
-let scanStream = null;
-let scanInterval = null;
 
 // ── Adjust stock ──
 function adjustStock(id, delta) {
@@ -852,72 +878,83 @@ function exportToNotes() {
 }
 
 // ══════════════════════════════════════════
-//  SCANNER
+//  SCANNER - iOS Native (image capture)
 // ══════════════════════════════════════════
-async function startScanner() {
-  try {
-    if (scanStream) return;
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width:{ideal:1280}, height:{ideal:720} }
-    });
-    scanStream = stream;
-    const video = document.getElementById('scanner-video');
-    video.srcObject = stream;
-    await video.play();
-    startBarcodeDetection(video);
-  } catch(e) {
-    showToast('📷 Kamera nicht verfügbar');
-  }
-}
-function stopScanner() {
-  if (scanStream) { scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; }
-  if (scanInterval) { clearInterval(scanInterval); scanInterval=null; }
+let scanHistory = [];
+try { scanHistory = JSON.parse(localStorage.getItem('vorrat_scans')||'[]'); } catch(e){}
+
+function saveScanHistory() {
+  localStorage.setItem('vorrat_scans', JSON.stringify(scanHistory.slice(0,20)));
 }
 
-function startBarcodeDetection(video) {
-  try {
-    const hints = new Map();
-    const formats = [
-      ZXing.BarcodeFormat.EAN_13,
-      ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.UPC_A,
-      ZXing.BarcodeFormat.UPC_E,
-      ZXing.BarcodeFormat.CODE_128,
-      ZXing.BarcodeFormat.CODE_39,
-      ZXing.BarcodeFormat.QR_CODE,
-    ];
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    const reader = new ZXing.MultiFormatReader();
-    reader.setHints(hints);
-
+async function handleBarcodeImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  showToast('🔍 Analysiere Bild…');
+  
+  // Draw image to canvas and try to read barcode
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = async () => {
+    URL.revokeObjectURL(url);
+    // Use canvas to extract image data
     const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
     const ctx = canvas.getContext('2d');
-
-    scanInterval = setInterval(()=>{
-      if (video.readyState < 2 || !scanStream) return;
+    ctx.drawImage(img, 0, 0);
+    
+    // Try native BarcodeDetector first (Chrome/Android), then fallback
+    if ('BarcodeDetector' in window) {
       try {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const luminanceSource = new ZXing.RGBLuminanceSource(imageData.data, canvas.width, canvas.height);
-        const binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource));
-        const result = reader.decode(binaryBitmap);
-        if (result) {
-          clearInterval(scanInterval); scanInterval = null;
-          // vibrate if supported
-          if (navigator.vibrate) navigator.vibrate(50);
-          lookupBarcode(result.getText());
+        const detector = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']});
+        const barcodes = await detector.detect(img);
+        if (barcodes.length > 0) {
+          await lookupBarcode(barcodes[0].rawValue);
+          input.value = '';
+          return;
         }
-      } catch(e) {
-        // NotFoundException is normal when no barcode visible – ignore
-      }
-    }, 300);
-  } catch(e) {
-    showToast('Scanner konnte nicht gestartet werden');
-  }
+      } catch(e) {}
+    }
+    
+    // iOS Safari fallback: prompt user to enter barcode from image
+    showToast('Barcode nicht erkannt');
+    const code = prompt('Barcode nicht automatisch erkannt.\nBitte Nummer manuell eingeben:');
+    if (code?.trim()) {
+      await lookupBarcode(code.trim());
+    }
+    input.value = '';
+  };
+  img.onerror = () => { showToast('Bild konnte nicht geladen werden'); input.value=''; };
+  img.src = url;
 }
+
+function lookupManualBarcode() {
+  const val = document.getElementById('manual-barcode-input').value.trim();
+  if (!val) { showToast('Bitte Barcode eingeben'); return; }
+  lookupBarcode(val);
+  document.getElementById('manual-barcode-input').value = '';
+}
+
+function renderScanHistory() {
+  const el = document.getElementById('scan-history-list');
+  if (!el) return;
+  if (scanHistory.length === 0) {
+    el.innerHTML = `<div class="list-row"><div class="list-content"><div class="list-title" style="color:var(--text3)">Noch keine Scans</div></div></div>`;
+    return;
+  }
+  el.innerHTML = scanHistory.slice(0,8).map(s => `
+    <div class="list-row" onclick="showScanResult('${s.name.replace(/'/g,"\\'")}','${s.detail.replace(/'/g,"\\'")}',${s.articleId||'null'},'${s.barcode||''}')">
+      <div class="list-content">
+        <div class="list-title">${s.name}</div>
+        <div class="list-detail">${s.detail} · ${timeSince(s.ts)}</div>
+      </div>
+      <span class="list-chevron">›</span>
+    </div>`).join('');
+}
+
+async function startScanner() { renderScanHistory(); }
+function stopScanner() {}
 
 async function lookupBarcode(code) {
   showToast('🔍 Suche Produkt…');
@@ -954,21 +991,26 @@ function showScanResult(name, detail, articleId, barcode) {
   currentScanArticle = {name, detail, articleId, barcode};
   document.getElementById('scan-product-name').textContent = name;
   document.getElementById('scan-product-detail').textContent = detail;
-  document.getElementById('scanner-result').style.display='block';
+  document.getElementById('scanner-result-section').style.display='block';
+  // Save to scan history
+  scanHistory.unshift({name, detail, articleId, barcode, ts:Date.now()});
+  saveScanHistory();
+  renderScanHistory();
+  // Scroll to result
+  document.getElementById('scanner-result-section').scrollIntoView({behavior:'smooth'});
 }
 
 function scanAdjust(delta) {
   if (!currentScanArticle) return;
   if (currentScanArticle.articleId) {
     adjustStock(currentScanArticle.articleId, delta);
-    showToast(delta>0?`➕ ${currentScanArticle.name}`:` ➖ ${currentScanArticle.name}`);
+    showToast(delta>0?`➕ ${currentScanArticle.name}`:`➖ ${currentScanArticle.name}`);
   } else {
-    // New product – open add modal pre-filled
     document.getElementById('add-name').value = currentScanArticle.name;
     document.getElementById('add-stock').value = Math.max(0, delta);
     openModal('modal-add');
   }
-  document.getElementById('scanner-result').style.display='none';
+  document.getElementById('scanner-result-section').style.display='none';
   currentScanArticle=null;
 }
 
