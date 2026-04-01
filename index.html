@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Vorrat">
 <title>VorratApp</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/zxing-js/0.20.0/zxing.min.js"></script>
 <style>
   :root {
     --blue: #007AFF;
@@ -874,22 +875,48 @@ function stopScanner() {
 }
 
 function startBarcodeDetection(video) {
-  if (!('BarcodeDetector' in window)) {
-    showToast('Barcode-Scanner nicht unterstützt – manuelle Eingabe nutzen');
-    return;
-  }
-  const detector = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']});
-  scanInterval = setInterval(async()=>{
-    if (video.readyState < 2) return;
-    try {
-      const barcodes = await detector.detect(video);
-      if (barcodes.length>0) {
-        const code = barcodes[0].rawValue;
-        clearInterval(scanInterval); scanInterval=null;
-        await lookupBarcode(code);
+  try {
+    const hints = new Map();
+    const formats = [
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.UPC_A,
+      ZXing.BarcodeFormat.UPC_E,
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.CODE_39,
+      ZXing.BarcodeFormat.QR_CODE,
+    ];
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    const reader = new ZXing.MultiFormatReader();
+    reader.setHints(hints);
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    scanInterval = setInterval(()=>{
+      if (video.readyState < 2 || !scanStream) return;
+      try {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const luminanceSource = new ZXing.RGBLuminanceSource(imageData.data, canvas.width, canvas.height);
+        const binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource));
+        const result = reader.decode(binaryBitmap);
+        if (result) {
+          clearInterval(scanInterval); scanInterval = null;
+          // vibrate if supported
+          if (navigator.vibrate) navigator.vibrate(50);
+          lookupBarcode(result.getText());
+        }
+      } catch(e) {
+        // NotFoundException is normal when no barcode visible – ignore
       }
-    } catch(e){}
-  }, 500);
+    }, 300);
+  } catch(e) {
+    showToast('Scanner konnte nicht gestartet werden');
+  }
 }
 
 async function lookupBarcode(code) {
