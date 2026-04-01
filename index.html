@@ -241,33 +241,47 @@
   <div class="screen" id="screen-scanner">
     <div class="page-header">
       <div class="page-title">Scanner</div>
-      <div class="page-subtitle">Via Apple Kurzbefehl</div>
+      <div class="page-subtitle">Via WebScan App</div>
     </div>
     <div class="scroll-area" style="padding-top:16px">
 
-      <!-- Shortcut Anleitung -->
+      <!-- WebScan Einrichtung -->
       <div class="list-group" style="margin-bottom:12px">
         <div style="padding:20px">
-          <div style="font-size:42px;text-align:center;margin-bottom:12px">⚡️</div>
-          <div style="font-size:17px;font-weight:700;text-align:center;margin-bottom:6px">Apple Kurzbefehl einrichten</div>
-          <div style="font-size:14px;color:var(--text3);text-align:center;margin-bottom:16px;line-height:1.5">Einmalig einrichten – danach mit einem Tippen scannen</div>
+          <div style="font-size:42px;text-align:center;margin-bottom:12px">📷</div>
+          <div style="font-size:17px;font-weight:700;text-align:center;margin-bottom:4px">WebScan einrichten</div>
+          <div style="font-size:14px;color:var(--text3);text-align:center;margin-bottom:16px;line-height:1.5">Einmalig – danach Barcode scannen & App öffnet sich automatisch</div>
+
           <div style="background:var(--fill);border-radius:12px;padding:14px;margin-bottom:12px">
-            <div style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:8px">SO FUNKTIONIERT ES</div>
-            <div style="font-size:14px;line-height:1.8">
-              1️⃣ Kurzbefehle-App öffnen<br>
-              2️⃣ Neuen Kurzbefehl erstellen<br>
-              3️⃣ Aktion: <b>Barcode scannen</b> hinzufügen<br>
-              4️⃣ Aktion: <b>URL öffnen</b> hinzufügen<br>
-              5️⃣ URL eintragen (siehe unten)<br>
-              6️⃣ Kurzbefehl zum Homescreen
+            <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Einrichtung (einmalig)</div>
+            <div style="font-size:15px;line-height:2">
+              1️⃣ <b>WebScan</b> aus dem App Store laden<br>
+              2️⃣ WebScan öffnen → <b>Menü ☰</b><br>
+              3️⃣ <b>"Set URL"</b> antippen<br>
+              4️⃣ Diese URL eintragen:<br>
             </div>
+            <div id="webscan-url-display" style="margin-top:10px;background:var(--card);border-radius:8px;padding:10px;font-size:12px;font-family:monospace;color:var(--blue);word-break:break-all;line-height:1.6"></div>
           </div>
-          <div style="background:var(--fill);border-radius:12px;padding:14px;margin-bottom:12px">
-            <div style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:6px">DEINE URL FÜR DEN KURZBEFEHL</div>
-            <div id="shortcut-url-display" style="font-size:13px;font-family:monospace;color:var(--blue);word-break:break-all;line-height:1.6"></div>
-          </div>
-          <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="copyShortcutURL()">📋 URL kopieren</button>
-          <button class="btn btn-secondary" style="width:100%" onclick="openShortcutsApp()">⚡️ Kurzbefehle öffnen</button>
+
+          <button class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;margin-bottom:10px" onclick="copyWebScanURL()">📋 URL kopieren</button>
+          <button class="btn btn-secondary" style="width:100%;padding:14px;font-size:15px" onclick="window.location.href='https://apps.apple.com/app/webscan-barcode-scanner/id1467608998'">🔗 WebScan im App Store</button>
+        </div>
+      </div>
+
+      <!-- So wird gescannt -->
+      <div class="section-label">So wird gescannt</div>
+      <div class="list-group" style="margin-bottom:12px">
+        <div class="list-row">
+          <div style="width:32px;height:32px;background:#007AFF;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0">1</div>
+          <div class="list-content"><div class="list-title">WebScan öffnen</div><div class="list-detail">Kamera startet sofort</div></div>
+        </div>
+        <div class="list-row">
+          <div style="width:32px;height:32px;background:#007AFF;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0">2</div>
+          <div class="list-content"><div class="list-title">Barcode draufhalten</div><div class="list-detail">EAN, QR, Code128 – alles funktioniert</div></div>
+        </div>
+        <div class="list-row" style="border-bottom:none">
+          <div style="width:32px;height:32px;background:#34C759;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0">3</div>
+          <div class="list-content"><div class="list-title">Vorrat-App öffnet sich</div><div class="list-detail">Produkt erkannt → ➕ oder ➖ tippen</div></div>
         </div>
       </div>
 
@@ -892,7 +906,7 @@ function exportToNotes() {
 }
 
 // ══════════════════════════════════════════
-//  SCANNER - Shortcut Integration
+//  SCANNER - WebScan Integration
 // ══════════════════════════════════════════
 let scanHistory = [];
 try { scanHistory = JSON.parse(localStorage.getItem('vorrat_scans')||'[]'); } catch(e){}
@@ -905,16 +919,21 @@ function getAppURL() {
   return window.location.origin + window.location.pathname;
 }
 
-function copyShortcutURL() {
-  const url = getAppURL() + '?barcode=[Barcode]';
+function copyWebScanURL() {
+  const url = getAppURL() + '?barcode=***';
   navigator.clipboard?.writeText(url).then(()=>showToast('✅ URL kopiert!')).catch(()=>{
     prompt('URL kopieren:', url);
   });
 }
 
-function openShortcutsApp() {
-  window.location.href = 'shortcuts://';
-  setTimeout(()=>showToast('Kurzbefehle-App öffnen'), 500);
+function copyShortcutURL() { copyWebScanURL(); }
+function openShortcutsApp() { window.location.href = 'shortcuts://'; }
+function stopScanner() {}
+
+async function startScanner() {
+  const urlEl = document.getElementById('webscan-url-display');
+  if (urlEl) urlEl.textContent = getAppURL() + '?barcode=***';
+  renderScanHistory();
 }
 
 function renderScanHistory() {
@@ -940,14 +959,6 @@ function lookupManualBarcode() {
   lookupBarcode(val);
   document.getElementById('manual-barcode-input').value = '';
 }
-
-async function startScanner() {
-  // Show current app URL for shortcut setup
-  const urlEl = document.getElementById('shortcut-url-display');
-  if (urlEl) urlEl.textContent = getAppURL() + '?barcode=[Barcode]';
-  renderScanHistory();
-}
-function stopScanner() {}
 
 async function lookupBarcode(code) {
   showToast('🔍 Suche Produkt…');
