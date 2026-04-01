@@ -241,19 +241,33 @@
   <div class="screen" id="screen-scanner">
     <div class="page-header">
       <div class="page-title">Scanner</div>
+      <div class="page-subtitle">Via Apple Kurzbefehl</div>
     </div>
     <div class="scroll-area" style="padding-top:16px">
 
-      <!-- Kamera-Scan via iOS file input -->
+      <!-- Shortcut Anleitung -->
       <div class="list-group" style="margin-bottom:12px">
-        <div style="padding:20px;text-align:center">
-          <div style="font-size:56px;margin-bottom:8px">📷</div>
-          <div style="font-size:17px;font-weight:600;margin-bottom:6px">Barcode fotografieren</div>
-          <div style="font-size:14px;color:var(--text3);margin-bottom:16px">Kamera öffnet sich – Barcode ins Bild halten</div>
-          <input type="file" accept="image/*" capture="environment" id="barcode-file-input" style="display:none" onchange="handleBarcodeImage(this)">
-          <button class="btn btn-primary" style="width:100%;padding:14px;font-size:17px;border-radius:14px" onclick="document.getElementById('barcode-file-input').click()">
-            📸 Kamera öffnen
-          </button>
+        <div style="padding:20px">
+          <div style="font-size:42px;text-align:center;margin-bottom:12px">⚡️</div>
+          <div style="font-size:17px;font-weight:700;text-align:center;margin-bottom:6px">Apple Kurzbefehl einrichten</div>
+          <div style="font-size:14px;color:var(--text3);text-align:center;margin-bottom:16px;line-height:1.5">Einmalig einrichten – danach mit einem Tippen scannen</div>
+          <div style="background:var(--fill);border-radius:12px;padding:14px;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:8px">SO FUNKTIONIERT ES</div>
+            <div style="font-size:14px;line-height:1.8">
+              1️⃣ Kurzbefehle-App öffnen<br>
+              2️⃣ Neuen Kurzbefehl erstellen<br>
+              3️⃣ Aktion: <b>Barcode scannen</b> hinzufügen<br>
+              4️⃣ Aktion: <b>URL öffnen</b> hinzufügen<br>
+              5️⃣ URL eintragen (siehe unten)<br>
+              6️⃣ Kurzbefehl zum Homescreen
+            </div>
+          </div>
+          <div style="background:var(--fill);border-radius:12px;padding:14px;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:6px">DEINE URL FÜR DEN KURZBEFEHL</div>
+            <div id="shortcut-url-display" style="font-size:13px;font-family:monospace;color:var(--blue);word-break:break-all;line-height:1.6"></div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="copyShortcutURL()">📋 URL kopieren</button>
+          <button class="btn btn-secondary" style="width:100%" onclick="openShortcutsApp()">⚡️ Kurzbefehle öffnen</button>
         </div>
       </div>
 
@@ -281,7 +295,7 @@
         </div>
       </div>
 
-      <!-- Letzten Scans -->
+      <!-- Letzte Scans -->
       <div class="section-label">Letzte Scans</div>
       <div class="list-group" id="scan-history-list">
         <div class="list-row"><div class="list-content"><div class="list-title" style="color:var(--text3)">Noch keine Scans</div></div></div>
@@ -878,7 +892,7 @@ function exportToNotes() {
 }
 
 // ══════════════════════════════════════════
-//  SCANNER - iOS Native (image capture)
+//  SCANNER - Shortcut Integration
 // ══════════════════════════════════════════
 let scanHistory = [];
 try { scanHistory = JSON.parse(localStorage.getItem('vorrat_scans')||'[]'); } catch(e){}
@@ -887,53 +901,20 @@ function saveScanHistory() {
   localStorage.setItem('vorrat_scans', JSON.stringify(scanHistory.slice(0,20)));
 }
 
-async function handleBarcodeImage(input) {
-  const file = input.files[0];
-  if (!file) return;
-  showToast('🔍 Analysiere Bild…');
-  
-  // Draw image to canvas and try to read barcode
-  const img = new Image();
-  const url = URL.createObjectURL(file);
-  img.onload = async () => {
-    URL.revokeObjectURL(url);
-    // Use canvas to extract image data
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    
-    // Try native BarcodeDetector first (Chrome/Android), then fallback
-    if ('BarcodeDetector' in window) {
-      try {
-        const detector = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']});
-        const barcodes = await detector.detect(img);
-        if (barcodes.length > 0) {
-          await lookupBarcode(barcodes[0].rawValue);
-          input.value = '';
-          return;
-        }
-      } catch(e) {}
-    }
-    
-    // iOS Safari fallback: prompt user to enter barcode from image
-    showToast('Barcode nicht erkannt');
-    const code = prompt('Barcode nicht automatisch erkannt.\nBitte Nummer manuell eingeben:');
-    if (code?.trim()) {
-      await lookupBarcode(code.trim());
-    }
-    input.value = '';
-  };
-  img.onerror = () => { showToast('Bild konnte nicht geladen werden'); input.value=''; };
-  img.src = url;
+function getAppURL() {
+  return window.location.origin + window.location.pathname;
 }
 
-function lookupManualBarcode() {
-  const val = document.getElementById('manual-barcode-input').value.trim();
-  if (!val) { showToast('Bitte Barcode eingeben'); return; }
-  lookupBarcode(val);
-  document.getElementById('manual-barcode-input').value = '';
+function copyShortcutURL() {
+  const url = getAppURL() + '?barcode=[Barcode]';
+  navigator.clipboard?.writeText(url).then(()=>showToast('✅ URL kopiert!')).catch(()=>{
+    prompt('URL kopieren:', url);
+  });
+}
+
+function openShortcutsApp() {
+  window.location.href = 'shortcuts://';
+  setTimeout(()=>showToast('Kurzbefehle-App öffnen'), 500);
 }
 
 function renderScanHistory() {
@@ -953,7 +934,19 @@ function renderScanHistory() {
     </div>`).join('');
 }
 
-async function startScanner() { renderScanHistory(); }
+function lookupManualBarcode() {
+  const val = document.getElementById('manual-barcode-input').value.trim();
+  if (!val) { showToast('Bitte Barcode eingeben'); return; }
+  lookupBarcode(val);
+  document.getElementById('manual-barcode-input').value = '';
+}
+
+async function startScanner() {
+  // Show current app URL for shortcut setup
+  const urlEl = document.getElementById('shortcut-url-display');
+  if (urlEl) urlEl.textContent = getAppURL() + '?barcode=[Barcode]';
+  renderScanHistory();
+}
 function stopScanner() {}
 
 async function lookupBarcode(code) {
@@ -1096,9 +1089,68 @@ function renderAll() {
 }
 
 // ══════════════════════════════════════════
+//  SHORTCUT INTEGRATION
+//  URL: deine-app-url?barcode=4012345678901
+//  URL: deine-app-url?barcode=...&action=add   (direkt +1)
+//  URL: deine-app-url?barcode=...&action=remove (direkt -1)
+// ══════════════════════════════════════════
+async function handleURLParams() {
+  const params = new URLSearchParams(window.location.search);
+  const barcode = params.get('barcode');
+  const action = params.get('action'); // 'add', 'remove', oder leer
+
+  if (!barcode) return;
+
+  // Zeige Scanner-Tab
+  const navItems = document.querySelectorAll('.nav-item');
+  switchScreen('scanner', navItems[1]);
+
+  showToast('🔍 Barcode vom Shortcut empfangen…');
+
+  await lookupBarcode(barcode, action);
+
+  // URL bereinigen ohne Reload
+  window.history.replaceState({}, '', window.location.pathname);
+}
+
+// Erweiterte lookupBarcode mit optionalem auto-action
+const _origLookup = lookupBarcode;
+async function lookupBarcode(code, autoAction) {
+  showToast('🔍 Suche Produkt…');
+  const local = articles.find(a => a.barcode === code);
+  if (local) {
+    if (autoAction === 'add')    { adjustStock(local.id,  1); showToast(`➕ ${local.name}`); return; }
+    if (autoAction === 'remove') { adjustStock(local.id, -1); showToast(`➖ ${local.name}`); return; }
+    showScanResult(local.name, `Eigene Liste · ${fmt(local)}`, local.id, code);
+    return;
+  }
+  try {
+    const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
+    const data = await res.json();
+    if (data.status === 1) {
+      const p = data.product;
+      const name = p.product_name_de || p.product_name || p.generic_name || 'Unbekannt';
+      const brand = p.brands || '';
+      // Check if name matches existing article
+      const match = articles.find(a => a.name.toLowerCase() === name.toLowerCase());
+      if (match) {
+        if (autoAction === 'add')    { adjustStock(match.id,  1); showToast(`➕ ${match.name}`); return; }
+        if (autoAction === 'remove') { adjustStock(match.id, -1); showToast(`➖ ${match.name}`); return; }
+      }
+      showScanResult(name, brand || 'Gescannt', match?.id || null, code);
+    } else {
+      showScanResult('Unbekanntes Produkt', `Barcode: ${code}`, null, code);
+    }
+  } catch(e) {
+    showScanResult('Produkt nicht gefunden', `Barcode: ${code}`, null, code);
+  }
+}
+
+// ══════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════
 renderDashboard();
+handleURLParams();
 </script>
 </body>
 </html>
